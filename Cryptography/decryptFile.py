@@ -6,6 +6,7 @@ KEYS_INFORMATION_E = "e_key_log.txt"
 SYSTEM_INFORMATION_E = "e_systeminfo.txt"
 CLIPBOARD_INFORMATION_E = "e_clipboard.txt"
 
+# List of encrypted files to be decrypted
 encrypted_files = [KEYS_INFORMATION_E, SYSTEM_INFORMATION_E, CLIPBOARD_INFORMATION_E]
 
 count = 0
@@ -14,6 +15,7 @@ for decrypting_file in encrypted_files:
     with open(encrypted_files[count], "rb") as f:
         data = f.read()
 
+    # Create a Fernet instance using the provided encryption key (the 'KEY' variable)
     fernet = Fernet(KEY)
     decrypted = fernet.decrypt(data)
 

